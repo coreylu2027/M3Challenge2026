@@ -1,0 +1,20 @@
+# MATLAB autosave
+*.asv
+*.m~
+*.mlx~
+
+# Simulink cache
+slprj/
+*.slxc
+
+# Code generation
+codegen/
+*_ert_rtw/
+*_grt_rtw/
+
+# Compiled files
+*.mex*
+
+# OS junk
+.DS_Store
+Thumbs.db
