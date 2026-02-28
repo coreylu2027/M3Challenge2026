@@ -152,9 +152,9 @@ def predict_disposable(S, region, age, family):
 
     # Tax calculated but not subtracted (matches MATLAB behavior)
     filing = filing_from_family(family)
-    _T = estimate_total_tax(S, region, filing)
+    T = estimate_total_tax(S, region, filing)
 
-    return max(-1e7, S - Ehat)
+    return max(-1e7, S - Ehat - T)
 
 
 def filing_from_family(family):
