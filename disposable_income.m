@@ -36,6 +36,8 @@ fams = fieldnames(inc_fam);
 %% ===== Income bracket data (to estimate income elasticity beta) =====
 income_br = [  7637  22443  34984  44824  59582  83888 121852 171847 322142 ]';
 ess_br    = [ 30214  34517  43459  47664  55157  66064  83346 105686 152382 ]';
+% income_br = [ 22443  34984  44824  59582  83888 121852 171847 322142 ]';
+% ess_br    = [ 34517  43459  47664  55157  66064  83346 105686 152382 ]';
 
 % Fit: log(E) = a + beta*log(S)  =>  E = alpha*S^beta, alpha=exp(a)
 X = [ones(size(income_br)) log(income_br)];
@@ -143,7 +145,7 @@ multiplier = @(region, age, family) exp( ...
 E_hat = @(S, region, age, family) E_base(S) .* multiplier(region, age, family);
 
 % Disposable income
-predictDisposable = @(S, region, age, family) max(0, ...
+predictDisposable = @(S, region, age, family) max(-10000000, ...
     S - E_hat(S, region, age, family) - estimateTaxes(S, region, family));
 
 %% ===== Example Set 1: Several single predictions =====
@@ -163,7 +165,7 @@ ex5 = predictDisposable(450000,'Northeast','Age45_54','MarriedTotal');
 fprintf('Ex5 (450k, Northeast, 45-54, MarriedTotal) Disposable = %.2f\n\n', ex5);
 
 %% ===== Example Set 7: Breakdown including taxes =====
-S = 150000;
+S = 120000;
 region = 'West';
 age    = 'Age45_54';
 family = 'MarriedKids';
@@ -198,6 +200,229 @@ fprintf('Ex3 taxes: %.2f\n', estimateTaxes(120000,'West','MarriedKids'));
 fprintf('Ex4 taxes: %.2f\n', estimateTaxes(35000,'Midwest','OtherMarried'));
 fprintf('Ex5 taxes: %.2f\n', estimateTaxes(200000,'Northeast','MarriedTotal'));
 
+%% ========================================================================
+%  EXAMPLES: show how age, family, income, and region change disposable income
+%  (Drop this block AFTER predictDisposable is defined.)
+%% ========================================================================
+
+format long g   % avoids scientific notation for disp() output
+
+% ---------- Baseline profile ----------
+S0      = 100000;
+region0 = 'Northeast';
+age0    = 'Age35_44';
+family0 = 'MarriedTotal';
+
+fprintf('\n=== BASELINE ===\n');
+D0 = predictDisposable(S0, region0, age0, family0);
+fprintf('Baseline: S=%g | %s | %s | %s  =>  Disposable=%g\n\n', S0, region0, age0, family0, D0);
+
+% ---------- 1) Vary INCOME only ----------
+fprintf('=== VARY INCOME (holding region/age/family fixed) ===\n');
+S_list = [25000 35000 50000 75000 100000 150000 200000 300000 450000]';
+for i = 1:numel(S_list)
+    S = S_list(i);
+    D = predictDisposable(S, region0, age0, family0);
+    fprintf('S=%g | %s | %s | %s  =>  Disposable=%g\n', S, region0, age0, family0, D);
+end
+fprintf('\n');
+
+% ---------- 2) Vary REGION only ----------
+fprintf('=== VARY REGION (holding income/age/family fixed) ===\n');
+regions_list = {'Northeast','Midwest','South','West'};
+for i = 1:numel(regions_list)
+    region = regions_list{i};
+    D = predictDisposable(S0, region, age0, family0);
+    fprintf('S=%g | %-9s | %s | %s  =>  Disposable=%g\n', S0, region, age0, family0, D);
+end
+fprintf('\n');
+
+% ---------- 3) Vary AGE only ----------
+fprintf('=== VARY AGE (holding income/region/family fixed) ===\n');
+ages_list = {'Under25','Age25_34','Age35_44','Age45_54','Age55_64','Age65_74','Age75plus'};
+for i = 1:numel(ages_list)
+    age = ages_list{i};
+    D = predictDisposable(S0, region0, age, family0);
+    fprintf('S=%g | %s | %-9s | %s  =>  Disposable=%g\n', S0, region0, age, family0, D);
+end
+fprintf('\n');
+
+% ---------- 4) Vary FAMILY only ----------
+fprintf('=== VARY FAMILY (holding income/region/age fixed) ===\n');
+families_list = {'Single','OneParent','MarriedOnly','MarriedKids','OtherMarried','MarriedTotal'};
+for i = 1:numel(families_list)
+    family = families_list{i};
+    D = predictDisposable(S0, region0, age0, family);
+    fprintf('S=%g | %s | %s | %-12s =>  Disposable=%g\n', S0, region0, age0, family, D);
+end
+fprintf('\n');
+
+% ---------- 5) Side-by-side "personas" (realistic combos) ----------
+fprintf('=== PERSONA EXAMPLES (mixing age/family/region/income) ===\n');
+cases = {
+    35000,  'South',     'Under25',   'Single'
+    55000,  'Midwest',   'Age25_34',  'Single'
+    70000,  'Northeast', 'Age25_34',  'OneParent'
+    95000,  'West',      'Age35_44',  'MarriedOnly'
+    120000, 'West',      'Age35_44',  'MarriedKids'
+    145000, 'Northeast', 'Age45_54',  'MarriedKids'
+    80000,  'South',     'Age55_64',  'OtherMarried'
+    60000,  'Midwest',   'Age65_74',  'MarriedOnly'
+    50000,  'Northeast', 'Age75plus', 'Single'
+    300000, 'West',      'Age45_54',  'MarriedTotal'
+    450000, 'Northeast', 'Age45_54',  'MarriedTotal'
+};
+for i = 1:size(cases,1)
+    S      = cases{i,1};
+    region = cases{i,2};
+    age    = cases{i,3};
+    family = cases{i,4};
+    D      = predictDisposable(S, region, age, family);
+    fprintf('%2d) S=%g | %-9s | %-9s | %-12s => Disposable=%g\n', i, S, region, age, family, D);
+end
+fprintf('\n');
+
+% ---------- 6) Mini "grid" (shows interactions) ----------
+fprintf('=== MINI GRID (interaction: income x region x age x family) ===\n');
+S_grid     = [50000 75000 100000 125000 150000 175000 200000];
+region_grid = {'Northeast','South','West', 'Midwest'};
+age_grid    = {'Under25','Age25_34', 'Age35_44','Age45_54', 'Age55_64', 'Age65_74'};
+family_grid = {'Single','MarriedKids','OneParent', 'MarriedOnly'};
+
+minD = inf; maxD = -inf;
+minRow = []; maxRow = [];
+
+row = 0;
+for si = 1:numel(S_grid)
+for ri = 1:numel(region_grid)
+for ai = 1:numel(age_grid)
+for fi = 1:numel(family_grid)
+    row = row + 1;
+
+    S      = S_grid(si);
+    region = region_grid{ri};
+    age    = age_grid{ai};
+    family = family_grid{fi};
+
+    D = predictDisposable(S, region, age, family);
+
+    % print all rows (small grid: 3*3*3*3 = 81)
+    fprintf('%2d) S=%g | %-9s | %-9s | %-11s => D=%g\n', row, S, region, age, family, D);
+
+    if D < minD
+        minD = D; minRow = {S, region, age, family};
+    end
+    if D > maxD
+        maxD = D; maxRow = {S, region, age, family};
+    end
+end
+end
+end
+end
+
+fprintf('\n--- GRID SUMMARY ---\n');
+fprintf('Min D=%g at S=%g | %s | %s | %s\n', minD, minRow{1}, minRow{2}, minRow{3}, minRow{4});
+fprintf('Max D=%g at S=%g | %s | %s | %s\n', maxD, maxRow{1}, maxRow{2}, maxRow{3}, maxRow{4});
+fprintf('\n');
+
+%% ========================================================================
+%  FIGURE #1: Disposable income vs. Salary (threshold curve)
+%  FIGURE #2: Component breakdown vs. Salary (Salary vs Taxes vs Essentials)
+%  (Drop this AFTER predictDisposable is defined.)
+%% ========================================================================
+
+% Choose a baseline demographic profile (edit as desired)
+regionP = 'Northeast';
+ageP    = 'Age35_44';
+familyP = 'MarriedTotal';
+
+% Salary range for plots
+Svec = (20000:2000:450000)';   % column vector
+
+% Preallocate
+Dvec  = zeros(size(Svec));
+Tvec  = zeros(size(Svec));
+Evec  = zeros(size(Svec));
+
+% Evaluate model across salary range
+for i = 1:numel(Svec)
+    S = Svec(i);
+    Tvec(i) = estimateTaxes(S, regionP, familyP);
+    Evec(i) = E_hat(S, regionP, ageP, familyP);
+    Dvec(i) = S - Tvec(i) - Evec(i);     % raw disposable (can be negative)
+end
+
+% Find approximate break-even point (where D crosses 0)
+idx = find(Dvec >= 0, 1, 'first');
+S_break = NaN;
+if ~isempty(idx) && idx > 1
+    % linear interpolation between the two nearest points
+    S1 = Svec(idx-1); D1 = Dvec(idx-1);
+    S2 = Svec(idx);   D2 = Dvec(idx);
+    S_break = S1 + (0 - D1) * (S2 - S1) / (D2 - D1);
+end
+
+%% ---------------- FIGURE #1: D vs Salary ----------------
+figure(1); clf;
+plot(Svec, Dvec, 'LineWidth', 2);
+hold on;
+yline(0, '--', 'LineWidth', 1.5);
+
+% Mark break-even salary if it exists in range
+if ~isnan(S_break)
+    xline(S_break, ':', 'LineWidth', 1.5);
+    text(S_break, 0, sprintf('  break-even \\approx $%0.0f', S_break), ...
+        'VerticalAlignment','bottom','Interpreter','tex');
+end
+
+grid on;
+xlabel('Salary S ($)');
+ylabel('Disposable Income D ($)');
+title(sprintf('Disposable Income vs Salary (%s | %s | %s)', regionP, ageP, familyP));
+set(gca,'XLim',[min(Svec) max(Svec)]);
+
+% Optional: improve tick formatting (no scientific notation)
+xtickformat('%,.0f');
+ytickformat('%,.0f');
+
+%% ---------------- FIGURE #2: Components vs Salary ----------------
+% This figure explains WHY many D values are negative:
+% taxes + essentials can exceed salary at low/moderate incomes.
+
+figure(2); clf;
+plot(Svec, Svec, 'LineWidth', 2);        % Salary line (y = S)
+hold on;
+plot(Svec, Tvec, 'LineWidth', 2);        % Taxes
+plot(Svec, Evec, 'LineWidth', 2);        % Essentials
+plot(Svec, Tvec + Evec, 'LineWidth', 2); % Total burden
+
+grid on;
+xlabel('Salary S ($)');
+ylabel('Dollars ($)');
+title(sprintf('Model Components vs Salary (%s | %s | %s)', regionP, ageP, familyP));
+legend({'Salary (S)','Taxes T(S)','Essentials \hat{E}','Taxes + Essentials'}, ...
+       'Location','northwest');
+
+set(gca,'XLim',[min(Svec) max(Svec)]);
+xtickformat('%,.0f');
+ytickformat('%,.0f');
+
+% Optional: visually highlight region where D<0 (burden > salary)
+% Shade where (Taxes + Essentials) exceeds Salary
+mask = (Tvec + Evec) > Svec;
+if any(mask)
+    % Find contiguous segment(s) - simplest: shade from start to first non-mask
+    first = find(mask, 1, 'first');
+    last  = find(mask, 1, 'last');
+    x1 = Svec(first); x2 = Svec(last);
+
+    yl = ylim;
+    patch([x1 x2 x2 x1], [yl(1) yl(1) yl(2) yl(2)], ...
+        [0.9 0.9 0.9], 'FaceAlpha',0.15, 'EdgeColor','none');
+    uistack(findobj(gca,'Type','line'),'top'); % keep lines on top
+    text((x1+x2)/2, yl(2)*0.95, 'Region where Taxes + Essentials > Salary (D<0)', ...
+        'HorizontalAlignment','center');
+end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% ===== LOCAL FUNCTIONS (must be at the END of the script) =====
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
